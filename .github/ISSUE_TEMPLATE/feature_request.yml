@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest a new tool or capability
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: What are you trying to do that you can't do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to see?
+      description: If you're proposing a new tool, which Proxmox API endpoint does it wrap?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: destructive
+    attributes:
+      label: Would this be a write/destructive operation?
+      description: Write tools are gated behind `PROXMOX_READONLY` and need task polling.
+      options:
+        - "No — read-only"
+        - "Yes — it modifies or destroys state"
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
