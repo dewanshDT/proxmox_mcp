@@ -1,18 +1,46 @@
 {
   "name": "proxmox-mcp",
-  "version": "1.0.0",
-  "description": "MCP server for Proxmox VE",
+  "version": "0.2.0",
+  "description": "Self-hostable MCP server for Proxmox VE — manage nodes, VMs, containers, snapshots and storage from any MCP client",
   "main": "dist/index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "echo \"No test suite yet — contributions welcome (see CONTRIBUTING.md)\" && exit 0",
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "proxmox",
+    "proxmox-ve",
+    "homelab",
+    "virtualization",
+    "self-hosted",
+    "claude",
+    "llm",
+    "ai"
+  ],
+  "author": "Dewansh <dewansh.dt@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dewanshDT/proxmox_mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dewanshDT/proxmox_mcp/issues"
+  },
+  "homepage": "https://github.com/dewanshDT/proxmox_mcp#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "DEPLOYMENT.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "express": "^5.1.0",

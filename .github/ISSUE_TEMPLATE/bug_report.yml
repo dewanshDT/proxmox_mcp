@@ -1,0 +1,83 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+
+        ⚠️ **Do not include your `MCP_AUTH_TOKEN`, Proxmox token secret, or any
+        real hostnames you'd rather not publish.** Redact logs before pasting.
+
+        For security vulnerabilities, please use a
+        [private advisory](https://github.com/dewanshDT/proxmox_mcp/security/advisories/new)
+        instead of a public issue.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start the server with '...'
+        2. Call tool '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Which layer does the problem appear in?
+      description: See DEPLOYMENT.md §6 for curl commands that isolate this.
+      options:
+        - Not sure
+        - Client cannot reach the server (connection/401/405)
+        - Server reaches Proxmox but the call fails (403/timeout/etc.)
+        - A tool returns wrong or unexpected data
+        - Docker/deployment issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server logs
+      description: Output of `docker compose logs` or the process stderr. Redact secrets.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: proxmox-mcp version or commit
+      placeholder: "v0.2.0 / commit abc1234"
+    validations:
+      required: true
+
+  - type: input
+    id: proxmox-version
+    attributes:
+      label: Proxmox VE version
+      placeholder: "8.2.2 — from `pveversion`"
+    validations:
+      required: true
+
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      placeholder: "Claude Code / Claude Desktop / OpenAI Responses API / custom"
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: How are you running it?
+      placeholder: "Docker on an LXC container / bare node / npm start on macOS. Cluster or standalone?"

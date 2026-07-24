@@ -1,8 +1,15 @@
 # proxmox-mcp
 
-An MCP server for [Proxmox VE](https://www.proxmox.com/en/proxmox-virtual-environment/overview). Lets Claude (or any MCP client) inspect and manage your nodes, VMs, containers, snapshots, and storage over the Proxmox REST API.
+[![CI](https://github.com/dewanshDT/proxmox_mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/dewanshDT/proxmox_mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
+
+A self-hostable MCP server for [Proxmox VE](https://www.proxmox.com/en/proxmox-virtual-environment/overview). Lets Claude (or any MCP client) inspect and manage your nodes, VMs, containers, snapshots, and storage over the Proxmox REST API.
 
 It runs as a **networked HTTP server** — host one instance inside your homelab (e.g. a Docker container on or near the cluster) and every device on your LAN can point its MCP client at it. The container holds the Proxmox credentials; clients authenticate with a bearer token. Proxmox's `:8006` API traffic stays internal — only the MCP endpoint is exposed to clients.
+
+> [!WARNING]
+> With write tools enabled this server can **stop virtual machines and roll back snapshots**, discarding current state — and an LLM decides when to call them. Start with `PROXMOX_READONLY=true` and a `PVEAuditor` token, keep your client's per-tool approval prompts on, and maintain backups you don't depend on this tool to restore.
 
 ## Architecture
 
@@ -146,3 +153,19 @@ npm run build   # compile to dist/
 ```
 
 The `src/client` + `src/endpoints` layers form a standalone Proxmox SDK with no MCP dependency — reusable for a CLI or dashboard.
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, project layout, and how to add a new tool. A test suite is the most valuable thing the project is currently missing.
+
+Please report security issues privately per [SECURITY.md](./SECURITY.md) rather than opening a public issue.
+
+## License
+
+[MIT](./LICENSE) © Dewansh
+
+## Disclaimer
+
+This is an **unofficial**, community-maintained project. It is not affiliated with, endorsed by, or sponsored by Proxmox Server Solutions GmbH. "Proxmox" is a registered trademark of Proxmox Server Solutions GmbH and is used here only to describe what this software interoperates with.
+
+The software is provided "as is", without warranty of any kind, as set out in the [MIT License](./LICENSE). You are responsible for what it does to your infrastructure.
