@@ -4,9 +4,11 @@ services:
     image: proxmox-mcp
     container_name: proxmox-mcp
     restart: unless-stopped
-    # Maps host:container. Change the left side to expose a different LAN port.
+    # Maps host:container. Set MCP_HOST_PORT in .env to expose a different LAN
+    # port — note that a compose *override* file cannot change this, because
+    # Compose appends port lists rather than replacing them.
     ports:
-      - "3000:3000"
+      - "${MCP_HOST_PORT:-3000}:3000"
     # All configuration lives in .env (copy from .env.example).
     env_file:
       - .env

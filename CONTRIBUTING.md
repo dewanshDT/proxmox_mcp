@@ -74,8 +74,8 @@ curl -s -X POST http://localhost:3000/mcp \
 
 ## Especially welcome
 
-- **A test suite.** There is currently none — this is the biggest gap. Unit tests for `src/client/http.ts` (envelope parsing, error mapping, parameter encoding) would be a great start.
-- Additional Proxmox coverage: VM create/clone/delete, migration, backup (vzdump) triggers.
+- **Extending the test suite.** `npm test` covers config loading, the HTTP client, task polling, and the tool layer (`test/`, using `node:test` — no test dependencies). The `src/endpoints/*` modules and the Express layer in `src/index.ts` are not covered yet.
+- Additional Proxmox coverage: VM create/clone/delete, migration, backup (vzdump) triggers. Migration needs a design decision first: on clusters without shared storage it copies disks over the network, which outlives `waitForTask`'s 120 s ceiling.
 - Multi-host failover for `PROXMOX_HOST`.
 - Documentation fixes — including typos.
 

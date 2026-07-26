@@ -25,7 +25,7 @@ jobs:
       - run: npm ci
 
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Build
         run: npm run build
@@ -64,7 +64,7 @@ jobs:
             -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' \
             | sed 's/^data: //' | grep -o '"name":"proxmox_[a-z_]*"' | sort -u | wc -l | tr -d ' ')
           echo "   found $COUNT tools"
-          test "$COUNT" = "22"
+          test "$COUNT" = "26"
 
           kill $SRV
 
@@ -94,7 +94,25 @@ jobs:
             -e PROXMOX_TOKEN_ID='ci@pve!test' \
             -e PROXMOX_TOKEN_SECRET=dummy \
             proxmox-mcp:ci
-          sleep 4
-          curl -fsS http://127.0.0.1:3000/health
-          docker logs mcp-ci
-          docker rm -f mcp-ci
+
+          # Poll rather than sleeping a fixed amount: a slow runner used to lose
+          # the race and fail with "Recv failure: Connection reset by peer".
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/health; then
+              echo "   healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "container did not answer /health within 30s"
+          exit 1
+
+      # Runs even when the step above fails — previously `bash -e` aborted first,
+      # so the one failure we did get arrived with no logs to diagnose it.
+      - name: Container logs
+        if: always()
+        run: docker logs mcp-ci || true
+
+      - name: Clean up
+        if: always()
+        run: docker rm -f mcp-ci || true

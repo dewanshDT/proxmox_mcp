@@ -161,9 +161,46 @@ export function registerTools(server: McpServer, proxmox: ProxmoxClient, options
   );
 
   server.registerTool(
+    "proxmox_storage_status",
+    {
+      description: "Detailed status and usage of a single storage pool. Use proxmox_list_storage for all pools on a node.",
+      inputSchema: { node, storage: z.string().describe("Storage ID, e.g. 'local-lvm'") },
+    },
+    safe(({ node, storage }) => proxmox.storage.status(node, storage)),
+  );
+
+  server.registerTool(
+    "proxmox_node_network",
+    {
+      description: "List network interfaces and bridges configured on a node",
+      inputSchema: { node },
+    },
+    safe(({ node }) => proxmox.nodes.network(node)),
+  );
+
+  server.registerTool(
+    "proxmox_backup_jobs",
+    {
+      description:
+        "List configured backup jobs (schedule, retention, selected guests). This is the backup " +
+        "*schedule*; use proxmox_storage_content with content='backup' for the backup files themselves.",
+    },
+    safe(() => proxmox.cluster.backupJobs()),
+  );
+
+  server.registerTool(
     "proxmox_cluster_tasks",
     { description: "List recent tasks across the cluster" },
     safe(() => proxmox.cluster.tasks()),
+  );
+
+  server.registerTool(
+    "proxmox_node_tasks",
+    {
+      description: "Recent task history for one node. Use proxmox_cluster_tasks for the cluster-wide view.",
+      inputSchema: { node },
+    },
+    safe(({ node }) => proxmox.tasks.list(node)),
   );
 
   server.registerTool(

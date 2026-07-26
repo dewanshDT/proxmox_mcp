@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"No test suite yet — contributions welcome (see CONTRIBUTING.md)\" && exit 0",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js"
