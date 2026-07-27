@@ -124,7 +124,8 @@ Repeat on every device — they all share the one server.
 | `MCP_AUTH_TOKEN` | ✅ | Bearer token clients must send. Required unless `MCP_ALLOW_NO_AUTH=true` |
 | `PROXMOX_ALLOW_SELF_SIGNED` | — | `true` to accept self-signed TLS certs (typical homelab) |
 | `PROXMOX_READONLY` | — | `true` to register only read-only tools |
-| `MCP_HTTP_PORT` | — | Port to listen on. Default `3000` |
+| `MCP_HTTP_PORT` | — | Port the server listens on inside the container. Default `3000` |
+| `MCP_HOST_PORT` | — | Port docker compose publishes on the host. Default `3000` |
 | `MCP_HTTP_HOST` | — | Bind address. Default `0.0.0.0` |
 | `MCP_ALLOW_NO_AUTH` | — | `true` to run without a bearer token (trusted networks only) |
 
@@ -139,7 +140,7 @@ Repeat on every device — they all share the one server.
 
 ## Tools
 
-**Read-only:** `proxmox_version`, `proxmox_cluster_status`, `proxmox_cluster_resources`, `proxmox_list_nodes`, `proxmox_node_status`, `proxmox_list_vms`, `proxmox_list_containers`, `proxmox_guest_status`, `proxmox_guest_config`, `proxmox_list_snapshots`, `proxmox_list_storage`, `proxmox_storage_content`, `proxmox_cluster_tasks`, `proxmox_task_status`, `proxmox_task_log`
+**Read-only:** `proxmox_version`, `proxmox_cluster_status`, `proxmox_cluster_resources`, `proxmox_list_nodes`, `proxmox_node_status`, `proxmox_node_network`, `proxmox_list_vms`, `proxmox_list_containers`, `proxmox_guest_status`, `proxmox_guest_config`, `proxmox_list_snapshots`, `proxmox_list_storage`, `proxmox_storage_content`, `proxmox_storage_status`, `proxmox_backup_jobs`, `proxmox_cluster_tasks`, `proxmox_node_tasks`, `proxmox_task_status`, `proxmox_task_log`
 
 **Write** (omitted when `PROXMOX_READONLY=true`): `proxmox_guest_start`, `proxmox_guest_shutdown`, `proxmox_guest_stop`, `proxmox_guest_reboot`, `proxmox_snapshot_create`, `proxmox_snapshot_delete`, `proxmox_snapshot_rollback`
 
@@ -148,15 +149,17 @@ Repeat on every device — they all share the one server.
 ## Development
 
 ```sh
-npm run dev     # run from source with tsx
-npm run build   # compile to dist/
+npm run dev        # run from source with tsx
+npm run build      # compile to dist/
+npm test           # run the test suite (node:test, no extra dependencies)
+npm run typecheck  # typecheck src and test
 ```
 
 The `src/client` + `src/endpoints` layers form a standalone Proxmox SDK with no MCP dependency — reusable for a CLI or dashboard.
 
 ## Contributing
 
-Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, project layout, and how to add a new tool. A test suite is the most valuable thing the project is currently missing.
+Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, project layout, and how to add a new tool. New tools should come with tests; `npm test` runs the suite.
 
 Please report security issues privately per [SECURITY.md](./SECURITY.md) rather than opening a public issue.
 
