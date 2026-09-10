@@ -28,7 +28,8 @@ test("returns as soon as the task reports stopped", async () => {
 
   const result = await api.waitForTask("pve", UPID);
 
-  assert.equal(result.exitstatus, "OK");
+  assert.equal(result.done, true);
+  assert.equal(result.done && result.status.exitstatus, "OK");
   assert.equal(calls.length, 1, "should not poll again once the task has stopped");
 });
 
@@ -49,16 +50,20 @@ test("a failed task still resolves — the caller inspects exitstatus", async ()
 
   const result = await api.waitForTask("pve", UPID);
 
-  assert.match(result.exitstatus ?? "", /exit code 1/);
+  assert.equal(result.done, true);
+  assert.match((result.done && result.status.exitstatus) || "", /exit code 1/);
 });
 
-test("gives up once the timeout elapses", async () => {
+test("gives up once the timeout elapses — resolves 'still running', never rejects", async () => {
   const { api } = stubbedTasks([{ status: "running" }]);
 
-  await assert.rejects(
-    () => api.waitForTask("pve", UPID, { timeoutMs: 50, pollIntervalMs: 1 }),
-    /Timed out after 50ms/,
-  );
+  // A task that never reports "stopped" must not blow up the request: at the
+  // ceiling waitForTask resolves the discriminated "still running" result so
+  // the tool can hand the agent a UPID to poll.
+  const pending = api.waitForTask("pve", UPID, { timeoutMs: 50, pollIntervalMs: 1 });
+
+  await assert.doesNotReject(pending);
+  assert.deepEqual(await pending, { done: false, upid: UPID, node: "pve" });
 });
 
 test("the UPID is URL-escaped into the path", async () => {

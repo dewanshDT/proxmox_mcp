@@ -5,13 +5,22 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { ProxmoxClient } from "./client/api.js";
 import { loadConfig } from "./config.js";
-import { registerTools } from "./mcp/tools.js";
+import { registerTools, resolveAllowlist, writeToolSummary } from "./mcp/tools.js";
+import { runPreflight } from "./preflight.js";
 
 const MCP_PATH = "/mcp";
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const proxmox = new ProxmoxClient(config.proxmox);
+
+  const allow = resolveAllowlist(config.writeTools);
+
+  // Startup ACL gate (spec.preflight §Ownership): runs after loadConfig() and
+  // before the server listens. A "denied" result throws out of main() into the
+  // main().catch below → process.exit(1); the warn-and-continue cases log and
+  // resolve here, so no try/catch is needed.
+  await runPreflight(proxmox, config);
 
   const app = express();
   app.use(express.json());
@@ -28,8 +37,8 @@ async function main(): Promise<void> {
   // transport. The tools carry no per-client state, so there is nothing to
   // keep between requests — this keeps multiple LAN clients fully isolated.
   app.post(MCP_PATH, async (req: Request, res: Response) => {
-    const server = new McpServer({ name: "proxmox-mcp", version: "0.2.0" });
-    registerTools(server, proxmox, { readonly: config.readonly });
+    const server = new McpServer({ name: "proxmox-mcp", version: "0.3.0" });
+    registerTools(server, proxmox, { allow });
 
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on("close", () => {
@@ -71,7 +80,7 @@ async function main(): Promise<void> {
     const auth = config.http.authToken ? "bearer auth" : "NO AUTH";
     console.error(
       `proxmox-mcp listening on http://${host}:${port}${MCP_PATH} ` +
-        `(${config.proxmox.host}, ${config.readonly ? "read-only" : "read-write"}, ${auth})`,
+        `(${config.proxmox.host}, write: ${writeToolSummary(allow)}, ${auth})`,
     );
   });
 }

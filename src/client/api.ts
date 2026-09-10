@@ -1,4 +1,5 @@
 import { ProxmoxHttp, type ProxmoxConfig } from "./http.js";
+import { AccessApi } from "../endpoints/access.js";
 import { ClusterApi } from "../endpoints/cluster.js";
 import { NodesApi } from "../endpoints/nodes.js";
 import { QemuApi } from "../endpoints/qemu.js";
@@ -13,6 +14,7 @@ import type { VersionInfo } from "../types/index.js";
  * dashboard, or any other automation.
  */
 export class ProxmoxClient {
+  readonly access: AccessApi;
   readonly cluster: ClusterApi;
   readonly nodes: NodesApi;
   readonly qemu: QemuApi;
@@ -25,6 +27,7 @@ export class ProxmoxClient {
 
   constructor(config: ProxmoxConfig) {
     this.http = new ProxmoxHttp(config);
+    this.access = new AccessApi(this.http);
     this.cluster = new ClusterApi(this.http);
     this.nodes = new NodesApi(this.http);
     this.qemu = new QemuApi(this.http);

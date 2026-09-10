@@ -1,6 +1,6 @@
 {
   "name": "proxmox-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Self-hostable MCP server for Proxmox VE — manage nodes, VMs, containers, snapshots and storage from any MCP client",
   "main": "dist/index.js",
   "type": "module",

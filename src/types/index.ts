@@ -115,6 +115,27 @@ export interface TaskListEntry {
   id?: string;
 }
 
+/** POST /nodes/{node}/qemu/{vmid}/agent/exec */
+export interface AgentExecStart {
+  pid: number;
+}
+
+/** GET /nodes/{node}/qemu/{vmid}/agent/exec-status — booleans arrive as 1/0.
+ *  While the command runs only `exited: 0` is present; `out-data` / `err-data`
+ *  are already base64-decoded to plain text by Proxmox. */
+export interface AgentExecStatus {
+  exited: 0 | 1;
+  exitcode?: number;
+  signal?: number;
+  "out-data"?: string;
+  "err-data"?: string;
+  "out-truncated"?: 0 | 1;
+  "err-truncated"?: 0 | 1;
+}
+
+/** GET /access/permissions — path -> (privilege -> propagation flag). */
+export type EffectivePermissions = Record<string, Record<string, 0 | 1>>;
+
 /** A UPID string, e.g. "UPID:pve:0004FABC:..." — returned by every write operation */
 export type Upid = string;
 

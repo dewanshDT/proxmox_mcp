@@ -40,10 +40,20 @@ jobs:
           PROXMOX_HOST: 192.0.2.1
           PROXMOX_TOKEN_ID: "ci@pve!test"
           PROXMOX_TOKEN_SECRET: dummy
+          PROXMOX_WRITE_TOOLS: all
         run: |
           node dist/index.js &
           SRV=$!
-          sleep 2
+
+          # Startup preflight probes Proxmox (unroutable 192.0.2.1 here), bounded
+          # to ~5s before it warns and continues — poll rather than sleeping.
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3999/health >/dev/null; then
+              echo "   healthy after ${i}s"; break
+            fi
+            sleep 1
+            if [ "$i" = 30 ]; then echo "server did not answer /health within 30s"; exit 1; fi
+          done
 
           echo "-> /health should be 200"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3999/health)" = "200"
@@ -56,7 +66,7 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3999/mcp \
             -H 'Authorization: Bearer ci-test-token')" = "405"
 
-          echo "-> authenticated tools/list should return every tool"
+          echo "-> authenticated tools/list should return every tool (19 read + 9 write = 28)"
           COUNT=$(curl -s -X POST http://127.0.0.1:3999/mcp \
             -H 'Authorization: Bearer ci-test-token' \
             -H 'Content-Type: application/json' \
@@ -64,7 +74,7 @@ jobs:
             -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' \
             | sed 's/^data: //' | grep -o '"name":"proxmox_[a-z_]*"' | sort -u | wc -l | tr -d ' ')
           echo "   found $COUNT tools"
-          test "$COUNT" = "26"
+          test "$COUNT" = "28"
 
           kill $SRV
 
@@ -93,6 +103,7 @@ jobs:
             -e PROXMOX_HOST=192.0.2.1 \
             -e PROXMOX_TOKEN_ID='ci@pve!test' \
             -e PROXMOX_TOKEN_SECRET=dummy \
+            -e PROXMOX_WRITE_TOOLS=all \
             proxmox-mcp:ci
 
           # Poll rather than sleeping a fixed amount: a slow runner used to lose
