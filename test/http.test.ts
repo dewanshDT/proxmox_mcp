@@ -87,6 +87,28 @@ test("POST params go in a urlencoded body, not the URL", async () => {
   assert.equal(captured?.body, "timeout=30&forceStop=1");
 });
 
+test("an array param is form-encoded as a repeated key", async () => {
+  await client().post("/nodes/pve/qemu/100/agent/exec", { command: ["ls", "-la"] });
+  assert.equal(captured?.method, "POST");
+  assert.equal(captured?.body, "command=ls&command=-la");
+});
+
+test("a scalar and an array param coexist in one request", async () => {
+  await client().post("/nodes/pve/qemu/100/agent/exec", {
+    command: ["cat", "/etc/hostname"],
+    "input-data": "hello",
+  });
+  assert.equal(
+    captured?.body,
+    "command=cat&command=%2Fetc%2Fhostname&input-data=hello",
+  );
+});
+
+test("an empty array param produces no output for that key", async () => {
+  await client().get("/cluster/resources", { type: "vm", command: [] });
+  assert.equal(captured?.url, "/api2/json/cluster/resources?type=vm");
+});
+
 test("DELETE params go in the query string like GET", async () => {
   await client().delete("/nodes/pve/qemu/100/snapshot/pre-upgrade", { force: true });
   assert.equal(captured?.method, "DELETE");

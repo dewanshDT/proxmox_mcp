@@ -27,7 +27,7 @@ There are **two independent authentication hops**. They use different credential
 | Header | `Authorization: Bearer <token>` | `Authorization: PVEAPIToken=<id>=<secret>` |
 | Set by | You, arbitrary | Proxmox, when you create the token |
 | Protects | Access to the MCP endpoint | Nothing — it *grants* access to Proxmox |
-| Scope control | All-or-nothing | Proxmox ACL roles + `PROXMOX_READONLY` |
+| Scope control | All-or-nothing | Proxmox ACL roles + `PROXMOX_READONLY` / `PROXMOX_WRITE_TOOLS` (§2.3) |
 
 **The critical consequence:** the Proxmox credential lives *only* on the server. Client devices never see it — they only hold the Layer 1 bearer token. That is the main security benefit of hosting this centrally. But it also means **anyone who has the Layer 1 token has whatever power the Layer 2 token was granted.** Scope the Proxmox role accordingly (§2.3).
 
@@ -83,7 +83,12 @@ pveum acl modify / --users mcp@pve --roles Administrator
 
 You can also scope by path instead of `/` — e.g. `pveum acl modify /vms/100 ...` limits the token to a single VM.
 
-**Defence in depth:** `PROXMOX_READONLY=true` makes the *server* refuse to register the 7 write tools at all (`src/mcp/tools.ts:187`). That is a separate control from the Proxmox ACL. Use both — the ACL is the real boundary (it cannot be bypassed by a server misconfiguration), while `PROXMOX_READONLY` guards against an over-privileged token being misused.
+**Defence in depth.** Two server-side gates sit *under* the Proxmox ACL:
+
+- **`PROXMOX_WRITE_TOOLS`** is the per-tool gate. It takes a comma-separated list of group aliases (`lifecycle`, `snapshot`, `destructive`, `exec`, `all`) and/or exact tool names; only the write tools it names get registered. An unknown or misspelled entry makes the server **refuse to boot**, naming the bad token, rather than starting with a silently narrower set. Left unset with `PROXMOX_READONLY` off, it falls back to `lifecycle,snapshot` and logs a deprecation warning — `destructive` and `exec` are never enabled implicitly.
+- **`PROXMOX_READONLY=true`** is the master off-switch. It forces the write set empty and overrides `PROXMOX_WRITE_TOOLS` (a warning is logged if both were set), so one variable still disables every write tool.
+
+Both are separate controls from the Proxmox ACL. Use them together — the ACL is the real boundary (it cannot be bypassed by a server misconfiguration), while `PROXMOX_WRITE_TOOLS` and `PROXMOX_READONLY` guard against an over-privileged token being misused.
 
 ### 2.4 The token is cluster-wide
 
@@ -106,7 +111,7 @@ This is normal for a homelab (Proxmox ships a self-signed cert) but it does mean
 
 Note the two distinct timeouts: an unreachable `PROXMOX_HOST` fails at the **connect** stage after ~10 s, well before the 30 s overall deadline. A host that accepts the connection but responds slowly gets the full 30 s.
 
-Write tools do not return until the Proxmox task finishes, so a slow VM shutdown can hold the HTTP response open for up to 120 s. Any reverse proxy in front of the server needs a read timeout above that or it will cut the response short.
+Write tools poll the Proxmox task before returning, so a slow VM shutdown can hold the HTTP response open for up to 120 s (the poll ceiling in the table above). Hitting that ceiling is **not** an error: the tool returns a normal result of the form `{"status":"running","upid":"…","node":"…","hint":"poll proxmox_task_status"}` — the Proxmox task is still alive, and the caller polls `proxmox_task_status` with that UPID until it stops. Any reverse proxy in front of the server still needs a read timeout above 120 s or it will cut that response short.
 
 ---
 
@@ -158,8 +163,18 @@ Treat it like a password. Rotate by changing `.env` and restarting (`docker comp
 ### Safety
 
 - **Deploy read-only first.** Set `PROXMOX_READONLY=true` and a `PVEAuditor` token, confirm everything works, then decide whether to grant write access.
-- Understand the destructive tools: `proxmox_snapshot_rollback` discards current state, `proxmox_guest_stop` is a hard power-cut. An LLM can invoke these. Most clients ask for approval per tool call — keep that on.
+- Understand the destructive tools: `proxmox_snapshot_rollback` discards current state, `proxmox_guest_stop` is a hard power-cut. An LLM can invoke these. Most clients ask for approval per tool call — keep that on. `proxmox_snapshot_delete` and `proxmox_snapshot_rollback` additionally require an `expect_name` that must match the target snapshot name, so a wrong `name` from a confused model is caught by the server before any request is sent; per-tool client approval is still the run-time gate.
 - Have backups independent of this server.
+
+### In-guest execution (`guest_exec`)
+
+The `exec` group adds `proxmox_guest_exec` and `proxmox_guest_exec_status`, which run a command **inside a QEMU VM** through the guest agent — not on the Proxmox host. This is arbitrary code execution in the guest, the highest-blast-radius capability in the server, so gate it tightly:
+
+- **Opt-in only.** Enable with `PROXMOX_WRITE_TOOLS=...,exec`. The deprecation bridge never includes it, and `PROXMOX_READONLY=true` still overrides it.
+- **QEMU only.** The QEMU guest agent must be installed and running in the target VM. An LXC target is refused (`guest_exec supports QEMU VMs only`) before any Proxmox call — LXC in-guest exec is out of scope.
+- **Needs `VM.GuestAgent.Unrestricted`** on the target. The startup preflight refuses to boot if `exec` is enabled and the token's ACL lacks it. Scope that grant to the guests you actually need — `pveum acl modify /vms/100 --users mcp@pve --roles ...` rather than `/`.
+- **Keep per-tool approval on.** There is no `expect_name`-style guardrail — a command string has no target name to match — so the client's per-call confirmation is the run-time check.
+- **Long commands.** `proxmox_guest_exec` polls on the same 1s / 120s contract as the other write tools. Pass `wait:false` to get the `pid` back immediately, then poll `proxmox_guest_exec_status` with `{ node, vmid, pid }` for the exit status and captured stdout/stderr. Hitting the 120s ceiling is not an error — it returns `{"status":"running","pid":...}`.
 
 ### Operations
 
@@ -324,6 +339,8 @@ Because these run on your own infrastructure, a LAN address is fine.
 - "Which node has the most free memory?"
 - "Snapshot VM 100 before I upgrade it."
 
+Deleting or rolling back a snapshot requires naming it twice — both `name` and a matching `expect_name` — or the server refuses the call.
+
 ---
 
 ## 6. Verifying a deployment
@@ -345,7 +362,7 @@ curl -s -X POST http://192.168.1.50:3000/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-# -> 22 tools (15 if PROXMOX_READONLY=true)
+# -> 19 read tools + the write tools enabled by PROXMOX_WRITE_TOOLS
 
 # 4. End-to-end through to Proxmox
 curl -s -X POST http://192.168.1.50:3000/mcp \
@@ -373,5 +390,5 @@ Proxmox and network failures are returned as normal MCP tool errors — `{"conte
 | Tool returns `fetch failed (self-signed certificate)` | Set `PROXMOX_ALLOW_SELF_SIGNED=true` |
 | Tool returns `fetch failed (Connect Timeout Error … :8006)` | Container cannot reach Proxmox `:8006` — firewall/routing/wrong host |
 | Tool returns `fetch failed (ECONNREFUSED)` | Host reachable but nothing listening on `:8006` |
-| Write tool: `Timed out after 120000ms` | Task genuinely slow; check it in the Proxmox UI (it may still complete) |
+| Write tool returns `{"status":"running","upid":"…"}` instead of a final result | Expected — the task outlived the 120 s poll ceiling and is still running. Poll `proxmox_task_status` with that UPID (or watch it in the Proxmox UI) until it stops |
 | Client shows no tools | Confirm with curl step 3; if that works, the client config is at fault |

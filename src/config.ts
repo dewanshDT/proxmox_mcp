@@ -15,6 +15,7 @@ export interface HttpConfig {
 export interface ServerConfig {
   proxmox: ProxmoxConfig;
   readonly: boolean;
+  writeTools: string[];
   http: HttpConfig;
 }
 
@@ -31,6 +32,45 @@ function required(name: string): string {
 
 function isTruthy(value: string | undefined): boolean {
   return value !== undefined && ["1", "true", "yes"].includes(value.toLowerCase());
+}
+
+function parseList(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+}
+
+/**
+ * Turn the raw PROXMOX_WRITE_TOOLS token list into the *effective* list by
+ * applying PROXMOX_READONLY precedence and the deprecation bridge.
+ *
+ *  - readonly wins: forces `[]`, warns if a raw list was also given.
+ *  - readonly off + no raw list: bridge to the literal group tokens
+ *    `["lifecycle", "snapshot"]` + a deprecation warning. `destructive` and
+ *    `exec` never come in this way — they require explicit opt-in.
+ *  - otherwise: the raw parsed list, unchanged.
+ *
+ * Warnings go to stderr (`console.error`), matching the server's logging.
+ */
+function resolveWriteTools(readonly: boolean, raw: string[]): string[] {
+  if (readonly) {
+    if (raw.length > 0) {
+      console.error(
+        "PROXMOX_READONLY=true overrides PROXMOX_WRITE_TOOLS and disables all write tools.",
+      );
+    }
+    return [];
+  }
+  if (raw.length === 0) {
+    console.error(
+      "Write access is enabled with no PROXMOX_WRITE_TOOLS set; falling back to lifecycle,snapshot. " +
+        "Set PROXMOX_WRITE_TOOLS explicitly (destructive and exec require explicit opt-in).",
+    );
+    return ["lifecycle", "snapshot"];
+  }
+  return raw;
 }
 
 export function loadConfig(): ServerConfig {
@@ -52,6 +92,9 @@ export function loadConfig(): ServerConfig {
     );
   }
 
+  const readonly = isTruthy(process.env.PROXMOX_READONLY);
+  const writeTools = resolveWriteTools(readonly, parseList(process.env.PROXMOX_WRITE_TOOLS));
+
   return {
     proxmox: {
       host,
@@ -59,7 +102,8 @@ export function loadConfig(): ServerConfig {
       tokenSecret: required("PROXMOX_TOKEN_SECRET"),
       allowSelfSigned: isTruthy(process.env.PROXMOX_ALLOW_SELF_SIGNED),
     },
-    readonly: isTruthy(process.env.PROXMOX_READONLY),
+    readonly,
+    writeTools,
     http: {
       port,
       host: process.env.MCP_HTTP_HOST ?? "0.0.0.0",

@@ -26,7 +26,8 @@ export class ProxmoxApiError extends Error {
   }
 }
 
-type Params = Record<string, string | number | boolean | undefined>;
+type ParamValue = string | number | boolean | undefined;
+type Params = Record<string, ParamValue | string[] | number[]>;
 
 /**
  * Minimal HTTP client for the Proxmox VE API. Knows about the base path,
@@ -116,8 +117,20 @@ function encodeParams(params?: Params): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined) continue;
-    // Proxmox expects booleans as 1/0
-    search.set(key, typeof value === "boolean" ? (value ? "1" : "0") : String(value));
+    if (Array.isArray(value)) {
+      // Repeated form field, e.g. command=ls&command=-la
+      for (const element of value) {
+        if (element === undefined) continue;
+        search.append(key, encodeScalar(element));
+      }
+      continue;
+    }
+    search.set(key, encodeScalar(value));
   }
   return search.toString();
+}
+
+/** Proxmox expects booleans as 1/0; everything else is stringified. */
+function encodeScalar(value: string | number | boolean): string {
+  return typeof value === "boolean" ? (value ? "1" : "0") : String(value);
 }

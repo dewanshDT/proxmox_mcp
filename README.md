@@ -123,7 +123,8 @@ Repeat on every device — they all share the one server.
 | `PROXMOX_TOKEN_SECRET` | ✅ | The token secret |
 | `MCP_AUTH_TOKEN` | ✅ | Bearer token clients must send. Required unless `MCP_ALLOW_NO_AUTH=true` |
 | `PROXMOX_ALLOW_SELF_SIGNED` | — | `true` to accept self-signed TLS certs (typical homelab) |
-| `PROXMOX_READONLY` | — | `true` to register only read-only tools |
+| `PROXMOX_READONLY` | — | Master off-switch. `true` registers only read tools, forces the write set empty, and overrides `PROXMOX_WRITE_TOOLS` |
+| `PROXMOX_WRITE_TOOLS` | — | Which write tools to register: comma-separated group aliases (`lifecycle`, `snapshot`, `destructive`, `exec`, `all`) and/or exact tool names. An unknown entry makes the server refuse to start. Unset (with `PROXMOX_READONLY` off) falls back to `lifecycle,snapshot` with a deprecation warning |
 | `MCP_HTTP_PORT` | — | Port the server listens on inside the container. Default `3000` |
 | `MCP_HOST_PORT` | — | Port docker compose publishes on the host. Default `3000` |
 | `MCP_HTTP_HOST` | — | Bind address. Default `0.0.0.0` |
@@ -142,7 +143,17 @@ Repeat on every device — they all share the one server.
 
 **Read-only:** `proxmox_version`, `proxmox_cluster_status`, `proxmox_cluster_resources`, `proxmox_list_nodes`, `proxmox_node_status`, `proxmox_node_network`, `proxmox_list_vms`, `proxmox_list_containers`, `proxmox_guest_status`, `proxmox_guest_config`, `proxmox_list_snapshots`, `proxmox_list_storage`, `proxmox_storage_content`, `proxmox_storage_status`, `proxmox_backup_jobs`, `proxmox_cluster_tasks`, `proxmox_node_tasks`, `proxmox_task_status`, `proxmox_task_log`
 
-**Write** (omitted when `PROXMOX_READONLY=true`): `proxmox_guest_start`, `proxmox_guest_shutdown`, `proxmox_guest_stop`, `proxmox_guest_reboot`, `proxmox_snapshot_create`, `proxmox_snapshot_delete`, `proxmox_snapshot_rollback`
+**Write** — each tool belongs to a group; it is registered only when its group (or its exact name) is listed in `PROXMOX_WRITE_TOOLS`, and never when `PROXMOX_READONLY=true`:
+
+- **`lifecycle`** (reversible): `proxmox_guest_start`, `proxmox_guest_shutdown`, `proxmox_guest_reboot`
+- **`snapshot`** (reversible): `proxmox_snapshot_create`
+- **`destructive`** (not reversible): `proxmox_guest_stop` (hard power-cut), `proxmox_snapshot_delete`, `proxmox_snapshot_rollback`
+
+  `proxmox_snapshot_delete` and `proxmox_snapshot_rollback` require an `expect_name` argument that must equal `name` — a second confirmation of the target. If the two differ the call is refused before any Proxmox request is made.
+
+- **`exec`** (in-guest command execution): `proxmox_guest_exec`, `proxmox_guest_exec_status`
+
+  Runs a command **inside a QEMU VM** via the guest agent (QEMU only — an LXC target is refused). Needs explicit `PROXMOX_WRITE_TOOLS` opt-in — the deprecation bridge never enables it — plus the QEMU guest agent running in the VM and the `VM.GuestAgent.Unrestricted` privilege on the target. `proxmox_guest_exec` polls for the result on the same 1s / 120s contract as the other write tools; `wait:false` returns the `pid` at once, and `proxmox_guest_exec_status` reads the exit status and captured stdout/stderr for a `{ node, vmid, pid }`.
 
 `proxmox_cluster_resources` is the best entry point — one call returns every node, VM, container, and storage pool, including on standalone (non-clustered) installations.
 

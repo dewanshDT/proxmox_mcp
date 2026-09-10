@@ -8,6 +8,7 @@ const OWNED = [
   "PROXMOX_TOKEN_SECRET",
   "PROXMOX_ALLOW_SELF_SIGNED",
   "PROXMOX_READONLY",
+  "PROXMOX_WRITE_TOOLS",
   "MCP_AUTH_TOKEN",
   "MCP_HTTP_PORT",
   "MCP_HTTP_HOST",
@@ -125,4 +126,73 @@ test("PROXMOX_READONLY defaults to false", () => {
 test("PROXMOX_ALLOW_SELF_SIGNED is read into the client config", () => {
   process.env.PROXMOX_ALLOW_SELF_SIGNED = "true";
   assert.equal(loadConfig().proxmox.allowSelfSigned, true);
+});
+
+// ---- PROXMOX_WRITE_TOOLS → effective (bridged, readonly-resolved) list ----
+
+/** Run `fn` with a capturing no-op `console.error`; restore it afterwards. */
+function captureStderr<T>(fn: () => T): { result: T; lines: string[] } {
+  const lines: string[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => {
+    lines.push(args.map(String).join(" "));
+  };
+  try {
+    return { result: fn(), lines };
+  } finally {
+    console.error = original;
+  }
+}
+
+test("PROXMOX_WRITE_TOOLS + PROXMOX_READONLY both unset bridges to lifecycle,snapshot", () => {
+  const { result, lines } = captureStderr(() => loadConfig());
+  assert.deepEqual(result.writeTools, ["lifecycle", "snapshot"]);
+  // deprecation warning names the env var the operator should set
+  assert.ok(lines.some((l) => l.includes("PROXMOX_WRITE_TOOLS")));
+  // the bridge never pulls in the opt-in-only groups
+  assert.ok(!result.writeTools.includes("destructive"));
+  assert.ok(!result.writeTools.includes("exec"));
+});
+
+test("PROXMOX_READONLY=true + PROXMOX_WRITE_TOOLS unset yields an empty list, no crash", () => {
+  process.env.PROXMOX_READONLY = "true";
+  const { result, lines } = captureStderr(() => loadConfig());
+  assert.deepEqual(result.writeTools, []);
+  assert.deepEqual(lines, []); // nothing to warn about — no raw list was given
+});
+
+test("PROXMOX_READONLY=true overrides PROXMOX_WRITE_TOOLS=all and warns", () => {
+  process.env.PROXMOX_READONLY = "true";
+  process.env.PROXMOX_WRITE_TOOLS = "all";
+  const { result, lines } = captureStderr(() => loadConfig());
+  assert.deepEqual(result.writeTools, []);
+  assert.ok(lines.some((l) => l.includes("PROXMOX_READONLY")));
+});
+
+test("an explicit non-empty PROXMOX_WRITE_TOOLS passes through unchanged, no warning", () => {
+  process.env.PROXMOX_WRITE_TOOLS = "destructive";
+  const { result, lines } = captureStderr(() => loadConfig());
+  assert.deepEqual(result.writeTools, ["destructive"]);
+  assert.deepEqual(lines, []);
+});
+
+test("PROXMOX_WRITE_TOOLS is split into trimmed tokens", () => {
+  process.env.PROXMOX_WRITE_TOOLS = "lifecycle,snapshot";
+  assert.deepEqual(loadConfig().writeTools, ["lifecycle", "snapshot"]);
+});
+
+test("PROXMOX_WRITE_TOOLS drops surrounding whitespace and empty entries", () => {
+  process.env.PROXMOX_WRITE_TOOLS = "a, b ,c,";
+  assert.deepEqual(loadConfig().writeTools, ["a", "b", "c"]);
+});
+
+test("PROXMOX_WRITE_TOOLS is lower-cased", () => {
+  process.env.PROXMOX_WRITE_TOOLS = "Lifecycle";
+  assert.deepEqual(loadConfig().writeTools, ["lifecycle"]);
+});
+
+test("PROXMOX_WRITE_TOOLS of only whitespace parses empty, so the bridge fires", () => {
+  process.env.PROXMOX_WRITE_TOOLS = "  ";
+  const { result } = captureStderr(() => loadConfig());
+  assert.deepEqual(result.writeTools, ["lifecycle", "snapshot"]);
 });

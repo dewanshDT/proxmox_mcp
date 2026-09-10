@@ -35,7 +35,7 @@ The `client/` and `endpoints/` layers deliberately know nothing about MCP — ke
 
 1. Add the API call to the relevant module in `src/endpoints/`, returning a typed result. Add types to `src/types/index.ts`.
 2. Register the tool in `src/mcp/tools.ts`. Wrap the handler in the existing `safe()` helper so errors surface as tool errors instead of crashing the server.
-3. If it is a **write** operation, register it after the `if (options.readonly) return;` guard and run it through `runTask()` so the Proxmox task is polled to completion.
+3. If it is a **write** operation, add a row to the `WRITE_TOOLS` table in `src/mcp/tools.ts` — `{ name, group, register(server, proxmox) }`, where `group` is one of `lifecycle`, `snapshot`, or `destructive` (see `WRITE_TOOL_GROUPS`). The registrar registers a row only when its `name` is in the resolved `PROXMOX_WRITE_TOOLS` allowlist, so there is no guard to place it after and no ordering to get right. Run the operation through `runTask()` so the Proxmox task is polled to completion.
 4. Document it in the README tool list.
 
 Use the existing `node`, `vmid`, and `guestType` Zod schemas at the top of `tools.ts` for consistent parameter descriptions.
