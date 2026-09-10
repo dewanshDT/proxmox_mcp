@@ -113,7 +113,7 @@ test("REQUIRED_PRIV: rollback is any-of, exec uses VM.GuestAgent.Unrestricted", 
 
 // ---- PMX-M2-03: runPreflight() — decision D7 branch behaviour ----
 //
-// runPreflight probes GET /access/permissions("/") through a ProxmoxClient and
+// runPreflight probes GET /access/permissions("/vms") through a ProxmoxClient and
 // gates boot: denied (2xx missing a priv, or 401/403) -> throw; unreachable
 // (5xx, or a transport reject) -> log + resolve; empty allowlist -> never throw.
 
@@ -161,7 +161,7 @@ const UNREACHABLE = "preflight: Proxmox unreachable, skipping permission check";
 test("runPreflight: lifecycle enabled + VM.PowerMgmt granted -> resolves, logs OK", async () => {
   const { lines, error } = await captureError(() =>
     runPreflight(
-      stubClient(async () => ({ "/": { "VM.PowerMgmt": 1 } })),
+      stubClient(async () => ({ "/vms": { "VM.PowerMgmt": 1 } })),
       makeConfig(["lifecycle"]),
     ),
   );
@@ -176,7 +176,7 @@ test("runPreflight: lifecycle enabled + VM.PowerMgmt granted -> resolves, logs O
 test("runPreflight: snapshot enabled but only VM.PowerMgmt granted -> rejects naming the tool + priv", async () => {
   const { error } = await captureError(() =>
     runPreflight(
-      stubClient(async () => ({ "/": { "VM.PowerMgmt": 1 } })),
+      stubClient(async () => ({ "/vms": { "VM.PowerMgmt": 1 } })),
       makeConfig(["lifecycle", "snapshot"]),
     ),
   );
@@ -273,7 +273,7 @@ test("PMX-M4-04: missingPrivileges — exec allowed, VM.GuestAgent.Unrestricted 
 test("PMX-M4-04: runPreflight — exec group enabled but agent priv absent -> refuses boot naming tool + priv", async () => {
   const { error } = await captureError(() =>
     runPreflight(
-      stubClient(async () => ({ "/": { "VM.PowerMgmt": 1 } })),
+      stubClient(async () => ({ "/vms": { "VM.PowerMgmt": 1 } })),
       makeConfig(["exec"]),
     ),
   );
@@ -285,7 +285,7 @@ test("PMX-M4-04: runPreflight — exec group enabled but agent priv absent -> re
 test("PMX-M4-04: runPreflight — exec group enabled + VM.GuestAgent.Unrestricted granted -> resolves, logs OK", async () => {
   const { lines, error } = await captureError(() =>
     runPreflight(
-      stubClient(async () => ({ "/": { "VM.GuestAgent.Unrestricted": 1 } })),
+      stubClient(async () => ({ "/vms": { "VM.GuestAgent.Unrestricted": 1 } })),
       makeConfig(["exec"]),
     ),
   );
@@ -299,7 +299,7 @@ test("PMX-M4-04: runPreflight — exec group enabled + VM.GuestAgent.Unrestricte
 
 // ---- PMX-M2-05: the probe is bounded — a hung Proxmox can't block boot ----
 //
-// Against a down / unroutable PROXMOX_HOST, `permissions("/")` hangs for the full
+// Against a down / unroutable PROXMOX_HOST, `permissions("/vms")` hangs for the full
 // undici connect timeout before the "unreachable -> warn + continue" branch runs,
 // delaying app.listen and /health. runPreflight now races the probe against
 // PREFLIGHT_PROBE.timeoutMs and treats exceeding it exactly like "unreachable".
@@ -350,4 +350,34 @@ test("PMX-M2-05: a late-rejecting probe does not surface as an unhandled rejecti
     process.off("unhandledRejection", onUnhandled);
     PREFLIGHT_PROBE.timeoutMs = savedTimeout;
   }
+});
+
+// ---- PMX-M2-06: preflight must query /vms, not / ----
+//
+// `GET /access/permissions?path=/` returns only what is effective *at* `/`; a
+// write role scoped to `/vms` (the DEPLOYMENT.md-recommended tighter scope)
+// propagates *down*, not up, so it is absent from the `/` response and preflight
+// false-negatives -> refuses to boot an otherwise-capable token. runPreflight
+// now probes `/vms`, which resolves both a direct `/vms` grant and privileges
+// propagated down from a `/`-level grant.
+
+test("PMX-M2-06: write grant only at /vms (nothing at /) -> runPreflight probes /vms and accepts it", async () => {
+  const probedPaths: Array<string | undefined> = [];
+  const { lines, error } = await captureError(() =>
+    runPreflight(
+      stubClient(async (path) => {
+        probedPaths.push(path);
+        // Grant exists ONLY at /vms — there is no "/" key at all.
+        return { "/vms": { "VM.PowerMgmt": 1 } };
+      }),
+      makeConfig(["lifecycle"]),
+    ),
+  );
+  assert.equal(error, undefined, "a /vms-scoped write grant must not refuse boot");
+  assert.deepEqual(probedPaths, ["/vms"], `expected the probe to query /vms, got: ${JSON.stringify(probedPaths)}`);
+  assert.ok(
+    lines.some((l) => l.startsWith("preflight: OK")),
+    `expected an OK line, got: ${JSON.stringify(lines)}`,
+  );
+  assert.ok(!lines.includes(UNREACHABLE));
 });

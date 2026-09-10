@@ -176,7 +176,14 @@ export async function runPreflight(proxmox: ProxmoxClient, config: ServerConfig)
 
   let perms: PermissionsResponse;
   try {
-    perms = await withProbeTimeout(proxmox.access.permissions("/"));
+    // Query `/vms`, not `/`. Every write tool in REQUIRED_PRIV is a VM
+    // operation, so `/vms` is the correct scope, and a `/vms` query is a
+    // superset of a `/` query for our purposes: it returns privileges granted
+    // directly at `/vms` (the DEPLOYMENT.md-recommended tighter scope) *and*
+    // those propagated down from a `/`-level grant. A `/` query only returns
+    // what is effective at `/` and misses a `/vms`-scoped write role, which
+    // false-negatives preflight and refuses an otherwise-capable token's boot.
+    perms = await withProbeTimeout(proxmox.access.permissions("/vms"));
   } catch (err) {
     // No write tools to gate: the probe is only for the log line here, so any
     // failure — 401 included — is warn-and-continue, never a refused boot.

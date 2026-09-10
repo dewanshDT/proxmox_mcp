@@ -14,10 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and/or exact tool names; only the write tools it names are registered. An
   unknown entry makes the server refuse to start, naming the bad token.
 - Startup permission preflight: before it listens, the server resolves the
-  Proxmox token's effective ACL and checks every enabled write tool against the
-  privilege it needs. A missing privilege (or an invalid token) refuses the
-  boot, naming the tool; an unreachable Proxmox is logged and the server starts
-  anyway (the probe is bounded to ~5 s so it never blocks `/health`).
+  Proxmox token's effective ACL (`GET /access/permissions?path=/vms`, which also
+  picks up privileges propagated from a `/`-level grant) and checks every
+  enabled write tool against the privilege it needs. A missing privilege (or an
+  invalid token) refuses the boot, naming the tool; an unreachable Proxmox is
+  logged and the server starts anyway (the probe is bounded to ~5 s so it never
+  blocks `/health`).
 - `proxmox_guest_exec` and `proxmox_guest_exec_status` — in-guest command
   execution via the QEMU guest agent. Both belong to the `exec` allowlist group
   (explicit `PROXMOX_WRITE_TOOLS` opt-in only; never enabled by the deprecation
