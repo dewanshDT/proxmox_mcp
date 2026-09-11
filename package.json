@@ -43,15 +43,15 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "express": "^5.1.0",
     "undici": "^7.28.0",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
-    "@types/node": "^26.1.1",
-    "tsx": "^4.23.0",
+    "@types/node": "^26.5.0",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   },
   "bin": {
