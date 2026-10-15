@@ -1,5 +1,5 @@
 # ---- Build stage ----
-FROM node:22-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 
 # Install all deps (incl. dev) against the lockfile, then compile.
@@ -10,7 +10,7 @@ COPY src ./src
 RUN npm run build
 
 # ---- Runtime stage ----
-FROM node:22-alpine AS runtime
+FROM node:25-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
